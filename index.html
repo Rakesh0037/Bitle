@@ -38,6 +38,10 @@
   .q b{color:var(--text)}
   .board{display:flex;flex-direction:column;gap:6px;align-items:center;margin:8px 0 14px}
   .row{display:flex;gap:5px;align-items:center}
+  .att{width:46px;text-align:right;margin-right:4px;line-height:1.05;color:var(--muted);font-family:Inter,sans-serif}
+  .att small{display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.5px}
+  .att b{font-size:15px;font-family:'JetBrains Mono',monospace}
+  .att.now{color:var(--accent)}
   .prefix{font-family:'JetBrains Mono',monospace;color:var(--muted);font-size:18px;width:26px;text-align:right;margin-right:2px}
   .cell{width:40px;height:46px;border:2px solid var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;
     font-family:'JetBrains Mono',monospace;font-weight:800;font-size:22px;transition:transform .15s}
@@ -57,6 +61,25 @@
   .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);
     padding:8px 14px;border-radius:6px;font-size:14px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
   .toast.show{opacity:1}
+  .tools{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .tools summary{cursor:pointer;padding:10px 12px;font-size:13px;font-weight:600;color:var(--text);list-style:none;display:flex;justify-content:space-between}
+  .tools summary::-webkit-details-marker{display:none}
+  .tools summary::after{content:'▾';color:var(--muted)}
+  .tools details[open] summary::after{content:'▴'}
+  .tools details+details{border-top:1px solid var(--line)}
+  .tools .inner{padding:0 12px 12px}
+  #scratch{width:100%;min-height:120px;resize:vertical;background:var(--code);color:var(--text);border:1px solid var(--line);border-radius:8px;
+    padding:10px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.5}
+  #scratch:focus{outline:1px solid var(--accent)}
+  .hint{font-size:11.5px;color:var(--muted);margin:6px 0 0;display:flex;justify-content:space-between}
+  .hint a{color:var(--accent);cursor:pointer}
+  .hexgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-family:'JetBrains Mono',monospace;font-size:12.5px}
+  .hexgrid div{background:var(--code);border-radius:5px;padding:4px 6px;display:flex;justify-content:space-between}
+  .hexgrid b{color:var(--green)}
+  .ref{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;table-layout:fixed}
+  .ref td{padding:5px 4px;border-top:1px solid var(--line);vertical-align:top}
+  .ref td{overflow-wrap:anywhere}
+  .ref td:first-child{font-family:'JetBrains Mono',monospace;color:var(--accent);width:52%;padding-right:10px}
   .result{display:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:14px}
   .result.show{display:block}
   .result h3{margin:0 0 4px;font-size:18px}
@@ -83,7 +106,7 @@
     font-style:normal;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:13px}
   .practice{font-size:12px;color:var(--muted);text-align:center;margin-top:16px}
   .practice a{color:var(--accent);cursor:pointer}
-  @media (max-width:400px){.cell{width:34px;height:42px;font-size:19px}.prefix{font-size:15px;width:20px}}
+  @media (max-width:400px){.app{padding:12px 8px 24px}.att{width:40px;margin-right:2px}.att small{font-size:8.5px}.cell{width:31px;height:40px;font-size:18px}.prefix{font-size:15px;width:20px}}
 </style>
 </head>
 <body>
@@ -107,6 +130,38 @@
 
   <div class="board" id="board"></div>
   <div class="keys" id="keys"></div>
+
+  <div class="tools">
+    <details open>
+      <summary>📝 Scratchpad</summary>
+      <div class="inner">
+        <textarea id="scratch" spellcheck="false" placeholder="Work it out here, like on paper…&#10;&#10;0x12345678&#10;= 0001 0010 0011 0100 0101 0110 0111 1000"></textarea>
+        <div class="hint"><span>Saved on this device for each puzzle</span><a id="clearScratch">Clear</a></div>
+      </div>
+    </details>
+    <details>
+      <summary>📘 Quick reference</summary>
+      <div class="inner">
+        <div class="hexgrid">
+          <div><b>0</b>0000</div><div><b>1</b>0001</div><div><b>2</b>0010</div><div><b>3</b>0011</div>
+          <div><b>4</b>0100</div><div><b>5</b>0101</div><div><b>6</b>0110</div><div><b>7</b>0111</div>
+          <div><b>8</b>1000</div><div><b>9</b>1001</div><div><b>A</b>1010</div><div><b>B</b>1011</div>
+          <div><b>C</b>1100</div><div><b>D</b>1101</div><div><b>E</b>1110</div><div><b>F</b>1111</div>
+        </div>
+        <table class="ref">
+          <tr><td>x |= (1u &lt;&lt; n)</td><td>set bit n</td></tr>
+          <tr><td>x &amp;= ~(1u &lt;&lt; n)</td><td>clear bit n</td></tr>
+          <tr><td>x ^= (1u &lt;&lt; n)</td><td>toggle bit n</td></tr>
+          <tr><td>(x &gt;&gt; n) &amp; 1u</td><td>read bit n</td></tr>
+          <tr><td>(x &gt;&gt; p) &amp; ((1u &lt;&lt; w) - 1)</td><td>read a w-bit field at position p</td></tr>
+          <tr><td>x &amp; (x - 1)</td><td>clear the lowest set bit</td></tr>
+          <tr><td>x &amp; -x</td><td>keep only the lowest set bit</td></tr>
+          <tr><td>1 hex digit</td><td>= 4 bits (a nibble); 8 hex digits = 32 bits</td></tr>
+          <tr><td>small types</td><td><code>uint8_t</code>/<code>int8_t</code>/<code>uint16_t</code> are promoted to 32-bit <code>int</code> before <code>~</code>, <code>&lt;&lt;</code> and arithmetic</td></tr>
+        </table>
+      </div>
+    </details>
+  </div>
 
   <div class="result" id="result">
     <h3 id="resHead"></h3>
@@ -200,6 +255,7 @@ function load(){
   const saved = store.get(key,null);
   guesses = saved?saved.guesses:[]; cur=''; done=saved?saved.done:false; won=saved?saved.won:false;
 
+  document.getElementById('scratch').value = store.get('bitle-notes-'+num,'');
   document.getElementById('dayLabel').textContent = `Bitle #${num}`;
   document.getElementById('dayStatus').textContent = (num===DAILY ? "Today's puzzle · " : 'Archive · ') + niceDate(num);
   const dp=document.getElementById('datePick'); dp.min=isoOf(1); dp.max=isoOf(DAILY); dp.value=isoOf(num);
@@ -227,7 +283,8 @@ function render(){
   const b=document.getElementById('board'); b.innerHTML='';
   for(let r=0;r<ROWS;r++){
     const row=document.createElement('div'); row.className='row';
-    row.innerHTML='<span class="prefix">0x</span>';
+    const isNow = r===guesses.length && !done;
+    row.innerHTML=`<span class="att${isNow?' now':''}"><small>Attempt</small><b>${r+1}</b></span><span class="prefix">0x</span>`;
     const g = r<guesses.length?guesses[r] : (r===guesses.length&&!done?cur:'');
     const sc = r<guesses.length?score(guesses[r],answer):null;
     for(let c=0;c<COLS;c++){
@@ -327,6 +384,8 @@ document.getElementById('prevDay').onclick=()=>goTo(num-1);
 document.getElementById('nextDay').onclick=()=>goTo(num+1);
 document.getElementById('todayBtn').onclick=()=>goTo(DAILY);
 document.getElementById('datePick').onchange=e=>{ if(e.target.value) goTo(numOfIso(e.target.value)); };
+document.getElementById('scratch').addEventListener('input',e=>store.set('bitle-notes-'+num,e.target.value));
+document.getElementById('clearScratch').onclick=()=>{ const t=document.getElementById('scratch'); t.value=''; store.set('bitle-notes-'+num,''); t.focus(); };
 window.addEventListener('hashchange',()=>goTo(numFromHash(),true));
 document.getElementById('helpBtn').onclick=()=>document.getElementById('helpModal').classList.add('show');
 document.getElementById('statsBtn').onclick=()=>{ document.getElementById('statsBox').innerHTML=statsHTML(); document.getElementById('statsModal').classList.add('show'); };
@@ -337,7 +396,7 @@ let tt; function toast(msg){ const t=document.getElementById('toast'); t.textCon
 
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
-  if(e.target && e.target.tagName==='INPUT') return;
+  if(e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA')) return;
   if(document.querySelector('.modal.show')){ if(e.key==='Escape'||e.key==='Enter') closeModals(); return; }
   if(e.key==='Enter') press('ENTER');
   else if(e.key==='Backspace') press('DEL');
