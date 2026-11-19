@@ -21,6 +21,13 @@
   .hdr-btns button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;
     padding:6px 9px;font-size:12px;cursor:pointer;margin-left:4px;font-family:inherit}
   .hdr-btns button:hover{color:var(--text);border-color:var(--muted)}
+  .daynav{display:flex;align-items:center;gap:6px;margin:12px 0 4px;flex-wrap:wrap}
+  .daynav button{background:#2b313a;border:1px solid var(--line);color:var(--text);border-radius:6px;height:32px;min-width:32px;
+    padding:0 9px;font-size:14px;cursor:pointer;font-family:inherit}
+  .daynav button:disabled{opacity:.35;cursor:not-allowed}
+  .daynav input[type=date]{background:#2b313a;border:1px solid var(--line);color:var(--text);border-radius:6px;height:32px;
+    padding:0 8px;font-family:inherit;font-size:13px;color-scheme:dark}
+  .daynav .num{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px;margin-right:auto}
   .meta{display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;font-size:13px;color:var(--muted)}
   .tag{background:#1f6feb22;color:var(--accent);border:1px solid #1f6feb55;padding:3px 8px;border-radius:999px;font-size:12px}
   .title{font-weight:600;font-size:16px;margin:0 0 8px}
@@ -86,7 +93,14 @@
     <div class="hdr-btns"><button id="helpBtn">How to play</button><button id="statsBtn">Stats</button></div>
   </header>
 
-  <div class="meta"><span id="dayLabel"></span><span class="tag" id="topic"></span></div>
+  <div class="daynav">
+    <span class="num" id="dayLabel"></span>
+    <button id="prevDay" title="Previous day">◀</button>
+    <input type="date" id="datePick" aria-label="Pick a day">
+    <button id="nextDay" title="Next day">▶</button>
+    <button id="todayBtn">Today</button>
+  </div>
+  <div class="meta"><span id="dayStatus"></span><span class="tag" id="topic"></span></div>
   <p class="title" id="ptitle"></p>
   <pre id="code"></pre>
   <p class="q" id="question"></p>
@@ -102,11 +116,11 @@
     <div class="stats" id="statsInline"></div>
     <div class="actions">
       <button class="primary" id="shareBtn">Copy result for LinkedIn</button>
-      <button class="secondary" id="nextBtn">Practice another</button>
+      <button class="secondary" id="nextBtn">Play the previous day</button>
     </div>
   </div>
 
-  <div class="practice"><a id="practiceLink">Practice older puzzles</a> · new puzzle every day at midnight · <a href="https://github.com/Rakesh0037/Bitle" style="color:var(--accent)">Contribute on GitHub</a></div>
+  <div class="practice">New puzzle every day at midnight · pick any past day above · <a href="https://github.com/Rakesh0037/Bitle" style="color:var(--accent)">Contribute on GitHub</a></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -137,8 +151,22 @@ function todayNumber(){
   return Math.max(1, Math.floor((t-LAUNCH)/86400000)+1);
 }
 const DAILY = todayNumber();
-let practiceIdx = null;           // null = daily mode
-function currentNumber(){ return practiceIdx===null ? DAILY : practiceIdx+1; }
+let num = DAILY;                  // puzzle number being played (1..DAILY)
+function currentNumber(){ return num; }
+const DAY_MS = 86400000;
+function dateOf(n){ return new Date(LAUNCH + (n-1)*DAY_MS); }          // UTC midnight of puzzle n
+function isoOf(n){ return dateOf(n).toISOString().slice(0,10); }
+function numOfIso(iso){ const [y,m,d]=iso.split('-').map(Number); return Math.floor((Date.UTC(y,m-1,d)-LAUNCH)/DAY_MS)+1; }
+function niceDate(n){ return dateOf(n).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}); }
+function goTo(n, fromHash){
+  if(n > DAILY){ toast('No peeking at future puzzles 🔒'); n = DAILY; }
+  if(n < 1){ toast('Bitle started on ' + niceDate(1)); n = 1; }
+  num = n;
+  const h = num===DAILY ? '' : '#day-' + num;
+  if(!fromHash && location.hash !== h){ try{ history.replaceState(null,'',h || location.pathname); }catch(e){ location.hash = h; } }
+  load(); window.scrollTo({top:0});
+}
+function numFromHash(){ const m=/^#day-(\d+)$/.exec(location.hash); return m ? parseInt(m[1],10) : DAILY; }
 function currentPuzzle(){ return PUZZLES[(currentNumber()-1) % PUZZLES.length]; }
 
 /* ---------- Storage (optional) ---------- */
@@ -169,10 +197,16 @@ function load(){
   const p=currentPuzzle();
   answer=hex(p.answer);
   const key='bitle-game-'+currentNumber();
-  const saved = practiceIdx===null ? store.get(key,null) : null;
+  const saved = store.get(key,null);
   guesses = saved?saved.guesses:[]; cur=''; done=saved?saved.done:false; won=saved?saved.won:false;
 
-  document.getElementById('dayLabel').textContent = practiceIdx===null ? `Puzzle #${DAILY}` : `Practice #${practiceIdx+1} of ${PUZZLES.length}`;
+  document.getElementById('dayLabel').textContent = `Bitle #${num}`;
+  document.getElementById('dayStatus').textContent = (num===DAILY ? "Today's puzzle · " : 'Archive · ') + niceDate(num);
+  const dp=document.getElementById('datePick'); dp.min=isoOf(1); dp.max=isoOf(DAILY); dp.value=isoOf(num);
+  document.getElementById('prevDay').disabled = num<=1;
+  document.getElementById('nextDay').disabled = num>=DAILY;
+  document.getElementById('todayBtn').style.display = num===DAILY ? 'none' : '';
+  document.getElementById('nextBtn').style.display = num<=1 ? 'none' : '';
   document.getElementById('topic').textContent=p.topic;
   document.getElementById('ptitle').textContent=p.title;
   document.getElementById('code').innerHTML=highlight(p.code);
@@ -235,7 +269,7 @@ function press(k){
     else if(guesses.length===ROWS){ done=true; won=false; }
     save();
     render();
-    if(done){ if(practiceIdx===null) updateStats(); setTimeout(()=>showResult(true),350); }
+    if(done){ if(num===DAILY) updateStats(); setTimeout(()=>showResult(true),350); }
     return;
   }
   else if(/^[0-9A-F]$/.test(k) && cur.length<COLS){ cur+=k; }
@@ -244,7 +278,7 @@ function press(k){
 
 function shake(){ const r=document.querySelectorAll('.row')[guesses.length]; if(!r) return; r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); }
 
-function save(){ if(practiceIdx===null) store.set('bitle-game-'+DAILY,{guesses,done,won}); }
+function save(){ store.set('bitle-game-'+num,{guesses,done,won}); }
 
 function updateStats(){
   const s=store.get('bitle-stats',{played:0,wins:0,streak:0,max:0,last:0});
@@ -265,7 +299,7 @@ function showResult(fresh){
   const bin=parseInt(answer,16).toString(2).padStart(32,'0').match(/.{4}/g).map((n,i)=>`<b>${answer[i]}</b>:${n}`).join(' ');
   document.getElementById('resBits').innerHTML=bin;
   document.getElementById('lesson').innerHTML=p.lesson;
-  document.getElementById('statsInline').innerHTML = practiceIdx===null ? statsHTML() : '';
+  document.getElementById('statsInline').innerHTML = num===DAILY ? statsHTML() : '';
   document.getElementById('result').classList.add('show');
   if(fresh) document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -274,8 +308,8 @@ function shareText(){
   const p=currentPuzzle();
   const em={g:'🟩',y:'🟨',b:'⬛'};
   const grid=guesses.map(g=>score(g,answer).map(s=>em[s]).join('')).join('\n');
-  const label = practiceIdx===null ? `#${DAILY}` : `practice #${practiceIdx+1}`;
-  return `Bitle ${label} ${won?guesses.length:'X'}/6 ⚡\nTopic: ${p.topic}\n\n${grid}\n\nToday I learned: ${p.title.toLowerCase()}.\nPlay today's puzzle: ${location.origin + location.pathname}\n#embedded #firmware #Bitle`;
+  const label = `#${num}`;
+  return `Bitle ${label} ${won?guesses.length:'X'}/6 ⚡\nTopic: ${p.topic}\n\n${grid}\n\nToday I learned: ${p.title.toLowerCase()}.\nPlay: ${location.origin + location.pathname}${num===DAILY?'':'#day-'+num}\n#embedded #firmware #Bitle`;
 }
 
 document.getElementById('shareBtn').onclick=async()=>{
@@ -288,11 +322,12 @@ document.getElementById('shareBtn').onclick=async()=>{
     document.getElementById('statsModal').classList.add('show');
   }
 };
-document.getElementById('nextBtn').onclick=()=>{
-  practiceIdx = practiceIdx===null ? (DAILY % PUZZLES.length) : (practiceIdx+1)%PUZZLES.length;
-  load(); window.scrollTo({top:0,behavior:'smooth'});
-};
-document.getElementById('practiceLink').onclick=()=>{ practiceIdx = practiceIdx===null?0:(practiceIdx+1)%PUZZLES.length; load(); window.scrollTo({top:0}); };
+document.getElementById('nextBtn').onclick=()=>goTo(num-1);
+document.getElementById('prevDay').onclick=()=>goTo(num-1);
+document.getElementById('nextDay').onclick=()=>goTo(num+1);
+document.getElementById('todayBtn').onclick=()=>goTo(DAILY);
+document.getElementById('datePick').onchange=e=>{ if(e.target.value) goTo(numOfIso(e.target.value)); };
+window.addEventListener('hashchange',()=>goTo(numFromHash(),true));
 document.getElementById('helpBtn').onclick=()=>document.getElementById('helpModal').classList.add('show');
 document.getElementById('statsBtn').onclick=()=>{ document.getElementById('statsBox').innerHTML=statsHTML(); document.getElementById('statsModal').classList.add('show'); };
 function closeModals(){ document.querySelectorAll('.modal').forEach(m=>m.classList.remove('show')); }
@@ -302,13 +337,14 @@ let tt; function toast(msg){ const t=document.getElementById('toast'); t.textCon
 
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(e.target && e.target.tagName==='INPUT') return;
   if(document.querySelector('.modal.show')){ if(e.key==='Escape'||e.key==='Enter') closeModals(); return; }
   if(e.key==='Enter') press('ENTER');
   else if(e.key==='Backspace') press('DEL');
   else { const k=e.key.toUpperCase(); if(/^[0-9A-F]$/.test(k)) press(k); }
 });
 
-buildKeys(); load();
+buildKeys(); goTo(numFromHash(), true);
 if(!store.get('bitle-seen',false)){ document.getElementById('helpModal').classList.add('show'); store.set('bitle-seen',true); }
 </script>
 </body>
