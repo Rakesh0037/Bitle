@@ -2,7 +2,7 @@
 
 **Wordle, but for embedded engineers.** Every day there's a new short piece of embedded C. Work out the final 32-bit value of `REG`, type it as 8 hex digits, and you get 6 tries.
 
-▶️ **Play:** https://rakeshreddyb37.github.io/Bitle/
+▶️ **Play:** https://rakesh0037.github.io/Bitle/
 
 ![Bitle screenshot](screenshot.png)
 
